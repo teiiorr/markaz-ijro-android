@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Brand palette — matches the web logo + dark theme background. -->
+    <color name="colorPrimary">#0E1330</color>
+    <color name="colorPrimaryDark">#080B22</color>
+    <color name="colorAccent">#6366F1</color>
+    <color name="colorSplash">#0E1330</color>
+    <color name="background">#0E1330</color>
+</resources>
