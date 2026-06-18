@@ -24,7 +24,7 @@ import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.BridgeWebViewClient;
 
 /**
- * MainActivity hooks two things into the Capacitor WebView:
+ * MainActivity hooks three things into the Capacitor WebView:
  *
  * 1) A DownloadListener — server-generated files (XLSX exports, PDF reports,
  *    attachment downloads) get handed off to Android's system DownloadManager
@@ -36,6 +36,12 @@ import com.getcapacitor.BridgeWebViewClient;
  *    shown instead of the bare Chrome error screen. The page reads
  *    navigator.onLine and auto-redirects to the live URL when connectivity
  *    is restored.
+ *
+ * 3) Aggressive cookie persistence — NextAuth sets a 30-day Expires on the
+ *    session token, but WebView's CookieManager only flushes to disk on its
+ *    own schedule. If the OS kills the app before that flush happens, the
+ *    user wakes up logged out. We enable cookies explicitly, then flush on
+ *    every onPause / onDestroy so the session survives a cold restart.
  */
 public class MainActivity extends BridgeActivity {
 
@@ -60,6 +66,14 @@ public class MainActivity extends BridgeActivity {
 
         if (bridge != null && bridge.getWebView() != null) {
             WebView webView = bridge.getWebView();
+
+            // Persistent cookies. The WebView speaks to a single first-party
+            // origin (uzsiac-journal.uz / markaz-ijro.uz), so accept-cookie +
+            // accept-third-party-cookie are both safe and required for the
+            // auth callback (NextAuth) cookie chain.
+            CookieManager cookieManager = CookieManager.getInstance();
+            cookieManager.setAcceptCookie(true);
+            cookieManager.setAcceptThirdPartyCookies(webView, true);
 
             // Extend Capacitor's bridge client so the bridge JS interface
             // keeps working — we only add error-handling on top.
@@ -114,6 +128,24 @@ public class MainActivity extends BridgeActivity {
                 }
             });
         }
+    }
+
+    /**
+     * Force WebView to write its in-memory cookies to disk so the session
+     * survives an OS-initiated kill or a swipe from Recents. Without this,
+     * the user logs in and is asked to log in again on the next cold start
+     * because the persistent Expires cookie never made it past RAM.
+     */
+    @Override
+    public void onPause() {
+        CookieManager.getInstance().flush();
+        super.onPause();
+    }
+
+    @Override
+    public void onDestroy() {
+        CookieManager.getInstance().flush();
+        super.onDestroy();
     }
 
     private static boolean isOfflinePage(String url) {
