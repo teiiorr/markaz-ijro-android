@@ -4,31 +4,43 @@ import android.Manifest;
 import android.app.DownloadManager;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.NetworkCapabilities;
+import android.net.Network;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.webkit.CookieManager;
 import android.webkit.URLUtil;
+import android.webkit.WebResourceError;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebView;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import android.widget.Toast;
 
 import com.getcapacitor.BridgeActivity;
+import com.getcapacitor.BridgeWebViewClient;
 
 /**
- * MainActivity attaches a DownloadListener to the Capacitor WebView so that
- * server-generated files (XLSX exports, PDF reports, attachment downloads,
- * etc.) hand off to Android's system DownloadManager instead of doing
- * nothing — which is the WebView default.
+ * MainActivity hooks two things into the Capacitor WebView:
  *
- * Cookies and the User-Agent are forwarded so the download is authenticated
- * the same way the page itself is. Files land in the public Downloads/
- * folder and trigger the system "download complete" notification.
+ * 1) A DownloadListener — server-generated files (XLSX exports, PDF reports,
+ *    attachment downloads) get handed off to Android's system DownloadManager
+ *    with the WebView's auth cookies forwarded. Without this, downloads would
+ *    silently no-op, which is the WebView default.
+ *
+ * 2) A BridgeWebViewClient subclass — when the main-frame load fails because
+ *    the device is offline, the bundled assets/public/offline.html page is
+ *    shown instead of the bare Chrome error screen. The page reads
+ *    navigator.onLine and auto-redirects to the live URL when connectivity
+ *    is restored.
  */
 public class MainActivity extends BridgeActivity {
 
     private static final int STORAGE_REQ = 1001;
+    private static final String OFFLINE_URL = "file:///android_asset/public/offline.html";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -47,7 +59,30 @@ public class MainActivity extends BridgeActivity {
         }
 
         if (bridge != null && bridge.getWebView() != null) {
-            bridge.getWebView().setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
+            WebView webView = bridge.getWebView();
+
+            // Extend Capacitor's bridge client so the bridge JS interface
+            // keeps working — we only add error-handling on top.
+            webView.setWebViewClient(new BridgeWebViewClient(bridge) {
+                @Override
+                public void onReceivedError(WebView view, WebResourceRequest request, WebResourceError error) {
+                    super.onReceivedError(view, request, error);
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP
+                            && request != null
+                            && request.isForMainFrame()
+                            && !isOfflinePage(view.getUrl())) {
+                        view.post(() -> view.loadUrl(OFFLINE_URL));
+                    }
+                }
+            });
+
+            // If the very first load fires before there's a network at all,
+            // skip the broken Chrome error and go straight to offline.html.
+            if (!hasNetwork()) {
+                webView.post(() -> webView.loadUrl(OFFLINE_URL));
+            }
+
+            webView.setDownloadListener((url, userAgent, contentDisposition, mimeType, contentLength) -> {
                 try {
                     DownloadManager.Request request = new DownloadManager.Request(Uri.parse(url));
                     String fileName = URLUtil.guessFileName(url, contentDisposition, mimeType);
@@ -79,5 +114,21 @@ public class MainActivity extends BridgeActivity {
                 }
             });
         }
+    }
+
+    private static boolean isOfflinePage(String url) {
+        return url != null && url.contains("offline.html");
+    }
+
+    private boolean hasNetwork() {
+        ConnectivityManager cm = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        if (cm == null) return false;
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            Network n = cm.getActiveNetwork();
+            if (n == null) return false;
+            NetworkCapabilities nc = cm.getNetworkCapabilities(n);
+            return nc != null && nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
+        }
+        return cm.getActiveNetworkInfo() != null && cm.getActiveNetworkInfo().isConnected();
     }
 }

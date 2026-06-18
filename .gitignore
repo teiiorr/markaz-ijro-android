@@ -1,5 +1,9 @@
 node_modules/
-www/
+www/*
+# Hand-written bootstrap + offline pages live in www/ — keep them tracked even
+# though the rest of www/ is build output we don't commit.
+!www/index.html
+!www/offline.html
 .DS_Store
 
 # Android build outputs

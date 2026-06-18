@@ -2,9 +2,13 @@ import type { CapacitorConfig } from "@capacitor/cli";
 
 /**
  * Capacitor config — native shell points at the live web app. Whatever ships
- * to https://markaz-ijro.uz is what the user sees in the APK; we never have
+ * to the production URL below is what the user sees in the APK; we never have
  * to re-bundle the JS to push a UI change. Set responsive design = handles
  * every screen size automatically (the web already does).
+ *
+ * NB: temporarily hosted on uzsiac-journal.uz while markaz-ijro.uz is being
+ * provisioned. Flip both `url` and `allowNavigation` back to markaz-ijro.uz
+ * once that domain points at the droplet.
  */
 const config: CapacitorConfig = {
   appId: "uz.bkrm.markazijro",
@@ -14,12 +18,12 @@ const config: CapacitorConfig = {
   webDir: "www",
   server: {
     // Production web app — same backend, same auth, same data.
-    url: "https://markaz-ijro.uz",
+    url: "https://uzsiac-journal.uz",
     cleartext: false,
     // Allowlist: the WebView only navigates to the production host. External
     // links (mailto:, http external sites) open in the system browser via
     // the @capacitor/browser plugin.
-    allowNavigation: ["markaz-ijro.uz", "www.markaz-ijro.uz"],
+    allowNavigation: ["uzsiac-journal.uz", "www.uzsiac-journal.uz"],
   },
   android: {
     // Match the brand colour from the web's dark logo chip.
