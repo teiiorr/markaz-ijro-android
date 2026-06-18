@@ -27,9 +27,76 @@
 | `android/app/build.gradle` | Build + signing-config через external properties |
 | `www/index.html` | Bootstrap-страница (мгновенный redirect на прод-URL) |
 
-## Установка инструментов (один раз)
+## 🚀 Самый простой способ — GitHub Actions собирает APK за вас
 
-На Mac:
+**Не нужно ставить ни Android Studio, ни SDK на Mac.** GitHub собирает APK
+в своём облаке бесплатно.
+
+1. Залить этот репо на GitHub (приватный или публичный — без разницы)
+2. Запушить любой коммит в `main`
+3. Открыть на GitHub: **Actions** → последний run → **Artifacts** →
+   скачать **markaz-ijro-debug-apk** (zip с APK внутри)
+
+Workflow в `.github/workflows/build-android.yml` запускается на каждый
+push в `main` и собирает APK за ~3-5 минут на linux-runner с предустановленным
+Android SDK.
+
+### Релизный подписанный APK (для раздачи сотрудникам)
+
+Тегните коммит как `v1.0.0` — GitHub Actions автоматически:
+1. соберёт `app-release.apk`
+2. подпишет (если настроен keystore в repo secrets — см. ниже)
+3. создаст **GitHub Release** с APK файлом, который любой может скачать без
+   аккаунта GitHub:
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+# через 3-5 минут — Releases → v1.0.0 → markaz-ijro-v1.0.0.apk
+```
+
+### Настройка подписания в GitHub Actions (один раз)
+
+1. Создать keystore локально (только для генерации ключа):
+
+```bash
+keytool -genkey -v -keystore release.keystore \
+  -keyalg RSA -keysize 2048 -validity 10000 -alias markaz-ijro
+```
+
+2. Закодировать keystore в base64:
+
+```bash
+base64 -i release.keystore | pbcopy
+# скопирует в буфер обмена
+```
+
+3. На GitHub: **Settings → Secrets and variables → Actions → New repository secret**, создать 4 секрета:
+
+| Имя секрета | Значение |
+|---|---|
+| `KEYSTORE_BASE64` | вставить из буфера обмена |
+| `KEYSTORE_PASSWORD` | пароль который указали в keytool |
+| `KEY_ALIAS` | `markaz-ijro` |
+| `KEY_PASSWORD` | пароль ключа (обычно тот же что keystore) |
+
+4. Сохранить `release.keystore` в защищённое место (Bitwarden / 1Password / печатное хранилище). **Если потеряете — не сможете больше выпускать апдейты к уже установленным APK на телефонах.**
+
+5. Удалить локальный файл:
+
+```bash
+rm release.keystore
+```
+
+С этого момента каждый тег `v*` → подписанный APK в Releases автоматически.
+
+---
+
+## 🛠 Альтернатива — собрать на Mac локально
+
+Если хотите собирать APK с ноутбука без GitHub:
+
+
 
 ```bash
 # Java 17 — уже есть (openjdk@17)

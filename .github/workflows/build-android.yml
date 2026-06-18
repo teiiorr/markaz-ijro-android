@@ -1,0 +1,144 @@
+name: Build Android APK
+
+# Builds a debug APK on every push to main and on every manual trigger,
+# then uploads it as a GitHub Actions artifact. Download it from the Actions
+# tab → latest run → Artifacts → markaz-ijro-debug-apk. Zero local Android
+# SDK install needed.
+#
+# Also: tag a commit with `v1.2.3` to fire the release-apk job, which builds
+# the same APK and attaches it to a GitHub Release for direct download
+# (no GitHub login needed by phone users).
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  debug:
+    name: Debug APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Cache Gradle
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/**/gradle-wrapper.properties') }}
+
+      - name: Build debug APK
+        run: cd android && ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk markaz-ijro-debug.apk
+          ls -lh markaz-ijro-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: markaz-ijro-debug-apk
+          path: markaz-ijro-debug.apk
+          retention-days: 30
+
+  release:
+    name: Release APK
+    needs: debug
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install npm deps
+        run: npm ci
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      # Signing — keystore is base64-encoded in repo secrets so we never
+      # commit the binary. See README → "GitHub Actions signing setup".
+      # If the secret is missing, the workflow still produces an unsigned
+      # release APK that's fine for internal side-loading.
+      - name: Decode keystore (optional)
+        if: env.KEYSTORE_BASE64 != ''
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.keystore
+          cat > android/app/keystore.properties <<EOF
+          storeFile=release.keystore
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+      - name: Build release APK
+        run: cd android && ./gradlew assembleRelease --no-daemon
+
+      - name: Rename APK
+        run: |
+          cp android/app/build/outputs/apk/release/app-release*.apk markaz-ijro-${{ github.ref_name }}.apk
+          ls -lh markaz-ijro-*.apk
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: markaz-ijro-${{ github.ref_name }}.apk
+          name: Markaz Ijro ${{ github.ref_name }}
+          body: |
+            ## Markaz Ijro — Android APK ${{ github.ref_name }}
+
+            Sotuvga emas, ichki foydalanish uchun.
+
+            **Установка:**
+            1. Скачайте `markaz-ijro-${{ github.ref_name }}.apk` ниже
+            2. Откройте файл на телефоне → разрешите установку из неизвестных источников
+            3. Откройте "Markaz Ijro"
+
+            Веб-версия: https://markaz-ijro.uz
+          draft: false
+          prerelease: false
