@@ -148,6 +148,22 @@ public class MainActivity extends BridgeActivity {
         super.onDestroy();
     }
 
+    /**
+     * Hardware back button. Default Capacitor behaviour on Android 13+ is
+     * "do nothing" unless an explicit handler is set, which leaves the user
+     * stuck inside whatever page they navigated to. Walk the WebView history
+     * if there's somewhere to go back to; otherwise let the OS handle it as
+     * a normal back-press (which exits the activity).
+     */
+    @Override
+    public void onBackPressed() {
+        if (bridge != null && bridge.getWebView() != null && bridge.getWebView().canGoBack()) {
+            bridge.getWebView().goBack();
+            return;
+        }
+        super.onBackPressed();
+    }
+
     private static boolean isOfflinePage(String url) {
         return url != null && url.contains("offline.html");
     }

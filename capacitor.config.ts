@@ -30,7 +30,10 @@ const config: CapacitorConfig = {
     backgroundColor: "#0E1330",
     // Allow file downloads through the WebView (PDF / XLSX exports).
     allowMixedContent: false,
-    captureInput: true,
+    // MUST be false — when true, Android WebView swallows hardware key events
+    // including Backspace, leaving inputs uneditable. Capacitor's name is
+    // misleading; the right default for text-editable apps is off.
+    captureInput: false,
     webContentsDebuggingEnabled: false,
   },
   plugins: {
