@@ -5,10 +5,6 @@ import type { CapacitorConfig } from "@capacitor/cli";
  * to the production URL below is what the user sees in the APK; we never have
  * to re-bundle the JS to push a UI change. Set responsive design = handles
  * every screen size automatically (the web already does).
- *
- * NB: temporarily hosted on uzsiac-journal.uz while markaz-ijro.uz is being
- * provisioned. Flip both `url` and `allowNavigation` back to markaz-ijro.uz
- * once that domain points at the droplet.
  */
 const config: CapacitorConfig = {
   appId: "uz.bkrm.markazijro",
@@ -18,12 +14,12 @@ const config: CapacitorConfig = {
   webDir: "www",
   server: {
     // Production web app — same backend, same auth, same data.
-    url: "https://uzsiac-journal.uz",
+    url: "https://markaz-ijro.uz",
     cleartext: false,
     // Allowlist: the WebView only navigates to the production host. External
     // links (mailto:, http external sites) open in the system browser via
     // the @capacitor/browser plugin.
-    allowNavigation: ["uzsiac-journal.uz", "www.uzsiac-journal.uz"],
+    allowNavigation: ["markaz-ijro.uz", "www.markaz-ijro.uz"],
   },
   android: {
     // Match the brand colour from the web's dark logo chip.
